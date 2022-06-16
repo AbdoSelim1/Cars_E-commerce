@@ -1,0 +1,120 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
+use App\Http\Controllers\Controller;
+use Spatie\Permission\Models\Permission;
+use App\Http\Requests\Dashboard\Role\StoreRoleRequest;
+use App\Http\Requests\Dashboard\Role\UpdateRoleRequest;
+
+class RolesController extends Controller
+{
+    public function __construct()
+    {
+        // $this->middleware(['superadmin.prevent.update'])->only('edit','update','destroy');
+        $this->middleware('permission:index Roles,admin')->only('index');
+        $this->middleware('permission:store Roles,admin')->only('store','create');
+        $this->middleware('permission:update Roles,admin')->only('update','edit');
+        $this->middleware('permission:destroy Roles,admin')->only('destroy');
+    }
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index()
+    {
+        $roles = Role::all();
+        return view('admin.roles.index', compact('roles'));
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function create()
+    {
+        $permissions = Permission::all()->groupBy('controller');
+        return view('admin.roles.create', compact('permissions'));
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function store(StoreRoleRequest $request)
+    {
+        DB::beginTransaction();
+        try {
+            $role = Role::create(['name' => $request->name, 'guard_name' => 'admin']);
+            $role->syncPermissions($request->permissions_id);
+            DB::commit();
+            if ($request->create == 'create') {
+                return redirect()->route('roles.index')->with(['success' => 'تمت عمليه الانشاء بنجاح']);
+            } elseif ($request->create == 'return') {
+                return redirect()->back()->with(['success' => 'تمت عمليه الانشاء بنجاح']);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if ($request->create == 'create') {
+                return redirect()->route('roles.index')->with(['error' => 'فشلت العمليه']);
+            } elseif ($request->create == 'return') {
+                return redirect()->back()->with(['error' => 'فشلت العمليه']);
+            }
+        }
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function edit(Role $role)
+    {
+        $permissions = Permission::all()->groupBy('controller');
+        $role_permissions_ids = $role->getAllPermissions()->pluck('id')->toArray();
+        return view('admin.roles.edit',compact('role','permissions','role_permissions_ids'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function update(UpdateRoleRequest $request,Role $role )
+    {
+        DB::beginTransaction();
+        try {
+            $role->update(['name' => $request->name, 'guard_name' => 'admin']);
+            $role->syncPermissions($request->permissions_id);
+            DB::commit();
+            return redirect()->route('roles.index')->with(['success' => 'تمت عمليه الانشاء بنجاح']);
+        
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('roles.index')->with(['success' => 'فشلت العمليه']);
+           
+        }   
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy(Role $role)
+    {
+        $role->delete();
+        return redirect()->back()->with(['success' => 'تمت عمليه الانشاء بنجاح']);
+    }
+}
